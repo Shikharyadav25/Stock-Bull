@@ -1,0 +1,44 @@
+# Virtual Environments
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Environment Variables (IMPORTANT - don't expose API keys!)
+.env
+*.env
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Data Files (too large for GitHub)
+data-pipeline/raw_data/
+data-pipeline/processed_data/*.csv
+ml-engine/data/
+
+# Model Files (too large - optional)
+models/saved_models/*.pkl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
