@@ -26,12 +26,12 @@ def quick_train():
         loader = DataLoader()
         df = loader.load_training_data()
         
-        # Use only last 6 months for quick test
+        # Use only 6 months for quick test
         cutoff_date = datetime.now() - timedelta(days=180)
         df = df[df['date'] >= cutoff_date]
         
-        # Use only 5 stocks
-        test_stocks = df['symbol'].unique()[:5]
+        # Use 10 stocks
+        test_stocks = df['symbol'].unique()[:10]
         df = df[df['symbol'].isin(test_stocks)]
         
         logger.info(f"Using {len(df)} records from {len(test_stocks)} stocks")

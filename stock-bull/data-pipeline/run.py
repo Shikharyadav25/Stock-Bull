@@ -32,13 +32,13 @@ def test_data_collection():
     print(f"✓ Collected {result} records")
 
 def collect_test_data():
-    """Collect test data for 5 stocks"""
+    """Collect test data for 10 stocks"""
     print("\nCollecting test data for training...")
     from datetime import datetime, timedelta
     from collectors.stock_price_collector import StockPriceCollector
     from collectors.fundamentals_collector import FundamentalsCollector
     
-    stocks = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK']
+    stocks = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'HINDUNILVR', 'ITC', 'SBIN', 'BHARTIARTL', 'BAJFINANCE']
     start_date = datetime.now() - timedelta(days=90)
     
     # Collect prices
@@ -63,7 +63,7 @@ def generate_features():
     from datetime import datetime, timedelta
     from processors.feature_generator import FeatureGenerator
     
-    stocks = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK']
+    stocks = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'HINDUNILVR', 'ITC', 'SBIN', 'BHARTIARTL', 'BAJFINANCE']
     start_date = datetime.now() - timedelta(days=90)
     
     generator = FeatureGenerator()

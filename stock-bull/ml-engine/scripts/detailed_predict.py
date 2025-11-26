@@ -7,15 +7,23 @@ import joblib
 import pandas as pd
 import numpy as np
 
+# Get absolute paths
+script_dir = os.path.dirname(os.path.abspath(__file__))
+ml_engine_dir = os.path.dirname(script_dir)
+stock_bull_dir = os.path.dirname(ml_engine_dir)
+
 # Load model
 print("Loading model...")
-model = joblib.load('../models/saved_models/quick_test_model.pkl')
-preprocessor_data = joblib.load('../models/saved_models/preprocessor.pkl')
+model_path = os.path.join(stock_bull_dir, 'models', 'saved_models', 'quick_test_model.pkl')
+preprocessor_path = os.path.join(stock_bull_dir, 'models', 'saved_models', 'preprocessor.pkl')
+
+model = joblib.load(model_path)
+preprocessor_data = joblib.load(preprocessor_path)
 feature_cols = preprocessor_data['feature_cols']
 scaler = preprocessor_data['scaler']
 
 # Load data
-data_path = '/Users/shikharyadav/Desktop/Stock Bull Final/stock-bull/data-pipeline/processed_data/complete_training_dataset.csv'
+data_path = os.path.join(stock_bull_dir, 'data-pipeline', 'processed_data', 'complete_training_dataset.csv')
 df = pd.read_csv(data_path)
 
 # Get latest for each stock
@@ -58,9 +66,22 @@ for idx, row in latest_df.iterrows():
         sentiment_trend = row.get('sentiment_trend', 0)
         news_count = row.get('news_count', 0)
         
+        # Handle NaN values
+        if pd.isna(sentiment_mean):
+            sentiment_mean = 0
+        if pd.isna(sentiment_trend):
+            sentiment_trend = 0
+        if pd.isna(news_count):
+            news_count = 0
+        
         # Get technical indicators
         rsi = row.get('rsi', 0)
         macd = row.get('macd', 0)
+        
+        if pd.isna(rsi):
+            rsi = 0
+        if pd.isna(macd):
+            macd = 0
         
         results.append({
             'symbol': symbol,

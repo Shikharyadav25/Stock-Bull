@@ -151,7 +151,7 @@ def load_model():
         st.error(f"❌ Error loading model: {e}")
         return None, None
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=60)
 def load_stock_data():
     """Load stock data from CSV"""
     try:
@@ -202,36 +202,87 @@ def make_predictions(df, model, preprocessor_data):
     
     for idx, row in df.iterrows():
         try:
+            # Get symbol for error reporting
+            symbol = row.get('symbol', 'UNKNOWN')
+            
+            # Ensure all required features are present
+            missing_features = [col for col in feature_cols if col not in row.index]
+            if missing_features:
+                # Fill missing features with 0
+                for col in missing_features:
+                    row[col] = 0
+            
+            # Prepare features
             X = row[feature_cols].values.reshape(1, -1)
             X_df = pd.DataFrame(X, columns=feature_cols)
             X_df = X_df.apply(pd.to_numeric, errors='coerce').fillna(0)
+            
+            # Check for all NaN values
+            if X_df.isna().all().all():
+                continue
+            
             X_scaled = scaler.transform(X_df)
             
+            # Make prediction
             pred = model.predict(X_scaled)[0]
             proba = model.predict_proba(X_scaled)[0]
             confidence = proba.max()
             
+            # Handle NaN values in row data
+            sentiment = row.get('sentiment_mean', 0)
+            if pd.isna(sentiment):
+                sentiment = 0
+            
+            rsi = row.get('rsi', 50)
+            if pd.isna(rsi):
+                rsi = 50
+                
+            macd = row.get('macd', 0)
+            if pd.isna(macd):
+                macd = 0
+            
+            news_count = row.get('news_count', 0)
+            if pd.isna(news_count):
+                news_count = 0
+            
+            volume_ratio = row.get('volume_ratio', 1.0)
+            if pd.isna(volume_ratio):
+                volume_ratio = 1.0
+                
+            momentum_20 = row.get('momentum_pct_20', 0)
+            if pd.isna(momentum_20):
+                momentum_20 = 0
+                
+            sma_20 = row.get('sma_20', 0)
+            if pd.isna(sma_20):
+                sma_20 = 0
+                
+            sma_50 = row.get('sma_50', 0)
+            if pd.isna(sma_50):
+                sma_50 = 0
+            
             results.append({
-                'symbol': row['symbol'],
-                'date': row['date'],
-                'close': row.get('close', 0),
-                'open': row.get('open', 0),
-                'high': row.get('high', 0),
-                'low': row.get('low', 0),
-                'volume': row.get('volume', 0),
+                'symbol': symbol,
+                'date': row.get('date'),
+                'close': float(row.get('close', 0)),
+                'open': float(row.get('open', 0)),
+                'high': float(row.get('high', 0)),
+                'low': float(row.get('low', 0)),
+                'volume': float(row.get('volume', 0)),
                 'prediction': class_map[pred],
                 'prediction_num': pred,
                 'confidence': confidence,
-                'sentiment': row.get('sentiment_mean', 0),
-                'rsi': row.get('rsi', 50),
-                'macd': row.get('macd', 0),
-                'news_count': int(row.get('news_count', 0)),
-                'volume_ratio': row.get('volume_ratio', 1.0),
-                'momentum_20': row.get('momentum_pct_20', 0),
-                'sma_20': row.get('sma_20', 0),
-                'sma_50': row.get('sma_50', 0)
+                'sentiment': float(sentiment),
+                'rsi': float(rsi),
+                'macd': float(macd),
+                'news_count': int(news_count),
+                'volume_ratio': float(volume_ratio),
+                'momentum_20': float(momentum_20),
+                'sma_20': float(sma_20),
+                'sma_50': float(sma_50)
             })
         except Exception as e:
+            # Skip this row but don't fail completely
             continue
     
     return pd.DataFrame(results)
@@ -241,9 +292,9 @@ def make_predictions(df, model, preprocessor_data):
 def show_dashboard(df, model, preprocessor_data):
     """Main dashboard page"""
     # Header with animation
-    st.markdown('<h1 class="main-header">📈 Stock Bull Dashboard</h1>', unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #666;'>AI-Powered Stock Market Intelligence</p>", unsafe_allow_html=True)
-    
+    st.markdown('<h1 class="main-header">Stock Bull</h1>', unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #666;'>AI-Powered Stock Market Intelligence Assistant</p>", unsafe_allow_html=True)
+
     # Get latest data for each stock
     latest_df = df.sort_values('date').groupby('symbol').tail(1).reset_index(drop=True)
     
@@ -261,7 +312,7 @@ def show_dashboard(df, model, preprocessor_data):
     st.markdown("---")
     
     # Key Metrics Row
-    st.subheader("📊 Market Snapshot")
+    st.subheader("📊 Market Analysis")
     
     col1, col2, col3, col4, col5 = st.columns(5)
     
@@ -300,7 +351,7 @@ def show_dashboard(df, model, preprocessor_data):
     
     with col4:
         st.markdown(f"""
-        <div class="metric-card" style="background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%);">
+        <div class="metric-card" style="background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 90%);">
             <h3 style="margin:0;">🎯 Confidence</h3>
             <h1 style="margin:0;">{avg_confidence:.1f}%</h1>
             <p style="margin:0; opacity: 0.8;">Model Accuracy</p>
@@ -318,69 +369,7 @@ def show_dashboard(df, model, preprocessor_data):
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Signal Distribution Chart
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.subheader("📈 Signal Distribution")
-        
-        signal_counts = predictions_df['prediction'].value_counts()
-        
-        fig = go.Figure(data=[
-            go.Bar(
-                x=signal_counts.index,
-                y=signal_counts.values,
-                marker=dict(
-                    color=[get_signal_color(x) for x in signal_counts.index],
-                    line=dict(color='white', width=2)
-                ),
-                text=signal_counts.values,
-                textposition='auto',
-            )
-        ])
-        
-        fig.update_layout(
-            title="Distribution of Trading Signals",
-            xaxis_title="Signal",
-            yaxis_title="Number of Stocks",
-            height=400,
-            showlegend=False,
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        st.subheader("🎯 Confidence Levels")
-        
-        # Confidence distribution
-        conf_ranges = ['High (>80%)', 'Medium (60-80%)', 'Low (<60%)']
-        conf_counts = [
-            len(predictions_df[predictions_df['confidence'] > 0.8]),
-            len(predictions_df[(predictions_df['confidence'] >= 0.6) & (predictions_df['confidence'] <= 0.8)]),
-            len(predictions_df[predictions_df['confidence'] < 0.6])
-        ]
-        
-        fig2 = go.Figure(data=[
-            go.Pie(
-                labels=conf_ranges,
-                values=conf_counts,
-                hole=0.4,
-                marker=dict(colors=['#00b894', '#fdcb6e', '#d63031'])
-            )
-        ])
-        
-        fig2.update_layout(
-            height=400,
-            showlegend=True,
-            paper_bgcolor='rgba(0,0,0,0)',
-        )
-        
-        st.plotly_chart(fig2, use_container_width=True)
-    
-    st.markdown("---")
-    
+
     # Top Recommendations
     col1, col2 = st.columns(2)
     
@@ -514,10 +503,16 @@ def show_stock_analysis(df, model, preprocessor_data):
     
     # Get latest prediction
     latest_data = stock_df.tail(1)
+    
+    if latest_data.empty:
+        st.warning(f"No data available for {selected_stock}")
+        return
+    
     predictions = make_predictions(latest_data, model, preprocessor_data)
     
     if predictions.empty:
-        st.error("Could not generate prediction")
+        st.error(f"❌ Could not generate prediction for {selected_stock}")
+        st.info("Try another stock or refresh the page")
         return
     
     pred = predictions.iloc[0]
@@ -914,210 +909,9 @@ def show_live_predictions(df, model, preprocessor_data):
                 else:
                     st.warning("💡 **Recommendation:** Exercise caution - consider reducing exposure")
 
-def show_portfolio_insights(df):
-    """Portfolio insights and statistics"""
-    st.markdown('<h1 class="main-header">📈 Portfolio & Market Insights</h1>', unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # Market Statistics
-    st.subheader("📊 Market Overview")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    total_stocks = df['symbol'].nunique()
-    date_range = (df['date'].max() - df['date'].min()).days
-    total_records = len(df)
-    avg_price = df.groupby('symbol').tail(1)['close'].mean()
-    
-    with col1:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h4 style="margin: 0; opacity: 0.8;">Stocks Analyzed</h4>
-            <h2 style="margin: 5px 0;">{total_stocks}</h2>
-            <p style="margin: 0; opacity: 0.8;">Companies</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h4 style="margin: 0; opacity: 0.8;">Data Range</h4>
-            <h2 style="margin: 5px 0;">{date_range}</h2>
-            <p style="margin: 0; opacity: 0.8;">Days</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col3:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h4 style="margin: 0; opacity: 0.8;">Total Records</h4>
-            <h2 style="margin: 5px 0;">{total_records:,}</h2>
-            <p style="margin: 0; opacity: 0.8;">Data Points</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col4:
-        st.markdown(f"""
-        <div class="metric-card">
-            <h4 style="margin: 0; opacity: 0.8;">Avg Price</h4>
-            <h2 style="margin: 5px 0;">₹{avg_price:.2f}</h2>
-            <p style="margin: 0; opacity: 0.8;">Market</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Get latest data for each stock
-    latest_df = df.sort_values('date').groupby('symbol').tail(1)
-    
-    # Performance Analysis
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("📈 Recent Performance Distribution")
-        
-        if 'momentum_pct_20' in latest_df.columns:
-            fig = px.histogram(
-                latest_df,
-                x='momentum_pct_20',
-                nbins=30,
-                title="20-Day Momentum Distribution",
-                labels={'momentum_pct_20': '20-Day Return (%)'},
-                color_discrete_sequence=['#667eea']
-            )
-            
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-    
-    with col2:
-        st.subheader("📊 RSI Distribution")
-        
-        if 'rsi' in latest_df.columns:
-            fig = px.box(
-                latest_df,
-                y='rsi',
-                title="RSI Distribution Across Stocks",
-                color_discrete_sequence=['#764ba2']
-            )
-            
-            fig.add_hline(y=70, line_dash="dash", line_color="red", annotation_text="Overbought")
-            fig.add_hline(y=30, line_dash="dash", line_color="green", annotation_text="Oversold")
-            
-            fig.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                height=400
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-    
-    st.markdown("---")
-    
-    # Top Performers
-    st.subheader("🏆 Top & Bottom Performers (Last 20 Days)")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("### 🚀 Top Gainers")
-        
-        if 'momentum_pct_20' in latest_df.columns:
-            top_performers = latest_df.nlargest(10, 'momentum_pct_20')[['symbol', 'close', 'momentum_pct_20']]
-            
-            for idx, row in top_performers.iterrows():
-                st.markdown(f"""
-                <div class="stock-card">
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="font-weight: bold; font-size: 1.1rem;">{row['symbol']}</span>
-                        <span style="color: #00b894; font-weight: bold;">+{row['momentum_pct_20']:.2f}%</span>
-                    </div>
-                    <p style="margin: 5px 0; color: #636e72;">Price: ₹{row['close']:.2f}</p>
-                </div>
-                """, unsafe_allow_html=True)
-    
-    with col2:
-        st.markdown("### 📉 Top Losers")
-        
-        if 'momentum_pct_20' in latest_df.columns:
-            bottom_performers = latest_df.nsmallest(10, 'momentum_pct_20')[['symbol', 'close', 'momentum_pct_20']]
-            
-            for idx, row in bottom_performers.iterrows():
-                st.markdown(f"""
-                <div class="stock-card">
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="font-weight: bold; font-size: 1.1rem;">{row['symbol']}</span>
-                        <span style="color: #d63031; font-weight: bold;">{row['momentum_pct_20']:.2f}%</span>
-                    </div>
-                    <p style="margin: 5px 0; color: #636e72;">Price: ₹{row['close']:.2f}</p>
-                </div>
-                """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    # Volatility Analysis
-    st.subheader("📊 Volatility Analysis")
-    
-    # Calculate volatility for each stock
-    volatility_data = []
-    for symbol in df['symbol'].unique():
-        stock_data = df[df['symbol'] == symbol].sort_values('date')
-        if len(stock_data) > 20:
-            returns = stock_data['close'].pct_change()
-            volatility = returns.std() * np.sqrt(252) * 100  # Annualized volatility
-            volatility_data.append({
-                'symbol': symbol,
-                'volatility': volatility,
-                'current_price': stock_data['close'].iloc[-1]
-            })
-    
-    volatility_df = pd.DataFrame(volatility_data).sort_values('volatility', ascending=False)
-    
-    if not volatility_df.empty:
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### 🔥 Most Volatile Stocks")
-            high_vol = volatility_df.head(5)
-            
-            for idx, row in high_vol.iterrows():
-                st.markdown(f"""
-                <div class="warning-box">
-                    <strong>{row['symbol']}</strong> - Volatility: {row['volatility']:.2f}%
-                    <br>Price: ₹{row['current_price']:.2f}
-                </div>
-                """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("### 😌 Least Volatile Stocks")
-            low_vol = volatility_df.tail(5)
-            
-            for idx, row in low_vol.iterrows():
-                st.markdown(f"""
-                <div class="success-box">
-                    <strong>{row['symbol']}</strong> - Volatility: {row['volatility']:.2f}%
-                    <br>Price: ₹{row['current_price']:.2f}
-                </div>
-                """, unsafe_allow_html=True)
-
 def show_about():
     """About page with project information"""
     st.markdown('<h1 class="main-header">ℹ️ About Stock Bull</h1>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="info-box">
-        <h3>🎯 Welcome to Stock Bull - Your AI-Powered Trading Assistant</h3>
-        <p style="font-size: 1.1rem;">
-        Stock Bull combines cutting-edge machine learning with real-time market data to provide 
-        intelligent stock predictions and actionable insights.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -1259,7 +1053,7 @@ def show_about():
     <div style="text-align: center; padding: 2rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 1rem; color: white;">
         <h2 style="margin: 0;">Made with ❤️ by Stock Bull Team</h2>
         <p style="margin: 10px 0;">Combining Machine Learning, Data Science, and Financial Analysis</p>
-        <p style="margin: 0; opacity: 0.8;">College Project • 2024</p>
+        <p style="margin: 0; opacity: 0.8;">Mini Project • 2024</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1277,7 +1071,7 @@ def main():
         # Navigation
         page = st.radio(
             "Navigate",
-            ["🏠 Dashboard", "📊 Stock Analysis", "🤖 Live Predictions", "📈 Portfolio Insights", "ℹ️ About"],
+            ["🏠 Dashboard", "📊 Stock Analysis", "🤖 Live Predictions", "ℹ️ About"],
             label_visibility="collapsed"
         )
         
@@ -1338,8 +1132,6 @@ def main():
         show_stock_analysis(df, model, preprocessor_data)
     elif page == "🤖 Live Predictions":
         show_live_predictions(df, model, preprocessor_data)
-    elif page == "📈 Portfolio Insights":
-        show_portfolio_insights(df)
     elif page == "ℹ️ About":
         show_about()
 
